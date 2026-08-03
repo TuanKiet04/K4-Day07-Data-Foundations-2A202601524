@@ -19,7 +19,7 @@ from src.embeddings import (
 
 # Thư mục dữ liệu mặc định cho demo = bộ khởi động cố định của lớp K4.
 # Đổi bằng biến môi trường: LAB_DATA_DIR=data/<thu-muc-cua-nhom> python3 main.py
-DEFAULT_DATA_DIR = "data/k4_ecommerce"
+DEFAULT_DATA_DIR = "data/my_docs"
 
 
 def _select_embedder():
@@ -32,17 +32,37 @@ def _select_embedder():
         except Exception:
             print("Local embedder không sẵn sàng; tạm dùng mock.")
             return _mock_embed
-    if provider == "openai":
+    if provider in ("openai", "openrouter"):
         try:
             return OpenAIEmbedder(model_name=os.getenv("OPENAI_EMBEDDING_MODEL", OPENAI_EMBEDDING_MODEL))
-        except Exception:
-            print("OpenAI embedder không sẵn sàng; tạm dùng mock.")
+        except Exception as e:
+            print(f"OpenAI/OpenRouter embedder không sẵn sàng ({e}); tạm dùng mock.")
             return _mock_embed
     return _mock_embed
 
 
 def demo_llm(prompt: str) -> str:
-    """LLM giả lập đơn giản để thử RAG thủ công."""
+    """Sử dụng OpenRouter LLM để sinh câu trả lời thật (nếu có key)."""
+    api_key = os.getenv("OPENROUTER_API_KEY")
+    if api_key:
+        from openai import OpenAI
+        try:
+            client = OpenAI(
+                base_url="https://openrouter.ai/api/v1",
+                api_key=api_key
+            )
+            # Dùng một mô hình nhẹ và nhanh của OpenRouter (ví dụ gemini hoặc llama)
+            # Nếu thích mô hình khác, bạn có thể đổi model="google/gemini-flash-1.5" v.v.
+            response = client.chat.completions.create(
+                model="google/gemini-2.5-flash",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=500
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            return f"[LỖI LLM] {e}"
+    
+    # Fallback nếu không có key
     preview = prompt[:400].replace("\n", " ")
     return f"[DEMO LLM] Generated answer from prompt preview: {preview}..."
 

@@ -46,14 +46,25 @@ class LocalEmbedder:
 
 
 class OpenAIEmbedder:
-    """OpenAI embeddings API-backed embedder."""
+    """OpenAI embeddings API-backed embedder (supports OpenRouter)."""
 
     def __init__(self, model_name: str = OPENAI_EMBEDDING_MODEL) -> None:
         from openai import OpenAI
+        import os
 
         self.model_name = model_name
         self._backend_name = model_name
-        self.client = OpenAI()
+        
+        provider = os.getenv(EMBEDDING_PROVIDER_ENV, "").strip().lower()
+        if provider == "openrouter":
+            self.client = OpenAI(
+                base_url="https://openrouter.ai/api/v1",
+                api_key=os.getenv("OPENROUTER_API_KEY")
+            )
+            if not self.model_name.startswith("openai/"):
+                self.model_name = "openai/" + self.model_name
+        else:
+            self.client = OpenAI()
 
     def __call__(self, text: str) -> list[float]:
         response = self.client.embeddings.create(model=self.model_name, input=text)
